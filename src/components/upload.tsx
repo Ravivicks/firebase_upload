@@ -1,20 +1,17 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { storage, db } from "../lib/firebase";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { collection, addDoc } from "firebase/firestore";
-import { Button } from "../components/ui/button";
-import { Progress } from "../components/ui/progress";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { User } from "firebase/auth";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "./ui/button";
+import { Progress } from "./ui/progress";
+import { Card, CardContent } from "./ui/card";
+import { Upload, X } from "lucide-react";
 
-export function Upload({ userId }: { userId: string }) {
+interface ImageUploadProps {
+  user: User;
+}
+
+export default function ImageUpload({ user }: ImageUploadProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ [key: string]: number }>({});
@@ -25,78 +22,108 @@ export function Upload({ userId }: { userId: string }) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
-  const handleUpload = async () => {
-    setUploading(true);
-    for (const file of files) {
-      const storageRef = ref(storage, `users/${userId}/${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+  const removeFile = (file: File) => {
+    setFiles((prevFiles) => prevFiles.filter((f) => f !== file));
+  };
 
-      uploadTask.on(
-        "state_changed",
-        (snapshot) => {
-          const percent =
-            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setProgress((prev) => ({ ...prev, [file.name]: percent }));
-        },
-        (error) => console.error("Error uploading file:", error),
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          await addDoc(collection(db, "images"), {
-            userId,
-            name: file.name,
-            url: downloadURL,
-            createdAt: new Date(),
-          });
+  const uploadFiles = async () => {
+    setUploading(true);
+
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("userId", user.uid);
+
+      try {
+        const response = await fetch("http://localhost:3001/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (response.ok) {
+          setProgress((prev) => ({
+            ...prev,
+            [file.name]: 100,
+          }));
+        } else {
+          console.error("Upload failed");
         }
-      );
+      } catch (error) {
+        console.error("Error uploading file:", error);
+      }
     }
+
     setUploading(false);
     setFiles([]);
     setProgress({});
   };
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Upload Images</CardTitle>
-        <CardDescription>
-          Drag and drop images or click to select
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Card className="w-full max-w-3xl mx-auto">
+      <CardContent className="p-6">
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-md p-4 ${
-            isDragActive ? "border-primary" : "border-gray-300"
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+            isDragActive ? "border-primary bg-primary/10" : "border-gray-300"
           }`}
         >
           <input {...getInputProps()} />
-          <p className="text-center">
+          <Upload className="mx-auto h-12 w-12 text-gray-400" />
+          <p className="mt-2 text-sm text-gray-500">
             {isDragActive
-              ? "Drop the files here..."
-              : "Drag and drop files here, or click to select files"}
+              ? "Drop the files here ..."
+              : "Drag 'n' drop some files here, or click to select files"}
           </p>
         </div>
-        {files.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {files.map((file, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <span>{file.name}</span>
-                <Progress value={progress[file.name] || 0} className="w-1/2" />
+        <AnimatePresence>
+          {files.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="mt-8"
+            >
+              <h3 className="text-lg font-semibold mb-4">Selected Files:</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {files.map((file) => (
+                  <motion.div
+                    key={file.name}
+                    layout
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="relative"
+                  >
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-full h-32 object-cover rounded-md"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1"
+                      onClick={() => removeFile(file)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    {progress[file.name] && (
+                      <Progress value={progress[file.name]} className="mt-2" />
+                    )}
+                  </motion.div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+              <Button
+                onClick={uploadFiles}
+                disabled={uploading}
+                className="mt-6 w-full"
+              >
+                {uploading ? "Uploading..." : "Upload Files"}
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CardContent>
-      <CardFooter>
-        <Button
-          onClick={handleUpload}
-          disabled={files.length === 0 || uploading}
-          className="w-full"
-        >
-          {uploading ? "Uploading..." : "Upload"}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

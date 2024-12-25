@@ -1,10 +1,19 @@
-import { useEffect, useState } from "react";
-import "./App.css";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  Navigate,
+} from "react-router-dom";
+import { useState, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "./lib/firebase";
-import { Auth } from "./components/auth";
-import { Upload } from "./components/upload";
-import { Gallery } from "./components/gallery";
+import Header from "./components/header";
+import SignUp from "./components/sign-up";
+import Login from "./components/login";
+import ImageGallery from "./components/gallery";
+import ImageUpload from "./components/upload";
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -17,19 +26,45 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  if (!user) {
-    return <Auth />;
-  }
-
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Welcome, {user.email}</h1>
-      <Upload userId={user.uid} />
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold mb-4">Your Gallery</h2>
-        <Gallery userId={user.uid} />
+    <Router>
+      <div className="min-h-screen bg-background w-screen">
+        <Header user={user} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Routes>
+              <Route
+                path="/signup"
+                element={!user ? <SignUp /> : <Navigate to="/gallery" />}
+              />
+              <Route
+                path="/login"
+                element={!user ? <Login /> : <Navigate to="/gallery" />}
+              />
+              <Route
+                path="/gallery"
+                element={
+                  user ? <ImageGallery user={user} /> : <Navigate to="/login" />
+                }
+              />
+              <Route
+                path="/upload"
+                element={
+                  user ? <ImageUpload user={user} /> : <Navigate to="/login" />
+                }
+              />
+              <Route path="/" element={<Navigate to="/gallery" />} />
+            </Routes>
+          </motion.div>
+        </AnimatePresence>
       </div>
-    </div>
+    </Router>
   );
 }
 
