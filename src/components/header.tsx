@@ -1,5 +1,4 @@
-import { User } from "firebase/auth";
-import { signOut } from "firebase/auth";
+import { User } from "@supabase/supabase-js";
 import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
@@ -10,7 +9,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { LogOut, Upload, Image } from "lucide-react";
 import { Button } from "./ui/button";
-import { auth } from "../lib/firebase";
+import { supabase } from "../lib/supabaseClient";
 
 interface HeaderProps {
   user: User | null;
@@ -18,9 +17,12 @@ interface HeaderProps {
 
 export default function Header({ user }: HeaderProps) {
   const navigate = useNavigate();
+  const photoURL = user?.user_metadata?.photoURL;
+  const displayName = user?.user_metadata?.displayName || "Anonymous User";
 
-  const handleSignOut = () => {
-    signOut(auth);
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) console.log("Error logging out:", error.message);
   };
 
   return (
@@ -46,12 +48,10 @@ export default function Header({ user }: HeaderProps) {
                   >
                     <Avatar className="h-8 w-8">
                       <AvatarImage
-                        src={user.photoURL || undefined}
-                        alt={user.displayName || "User avatar"}
+                        src={photoURL || undefined}
+                        alt={displayName || "User avatar"}
                       />
-                      <AvatarFallback>
-                        {user.displayName?.[0] || "U"}
-                      </AvatarFallback>
+                      <AvatarFallback>{displayName?.[0] || "U"}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>

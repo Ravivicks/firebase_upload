@@ -3,12 +3,12 @@ import {
   Route,
   Routes,
   Navigate,
+  useNavigate,
 } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "./lib/firebase";
+import { User } from "@supabase/supabase-js";
+import { supabase } from "./lib/supabaseClient";
 import Header from "./components/header";
 import SignUp from "./components/sign-up";
 import Login from "./components/login";
@@ -19,11 +19,22 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data?.user || null);
+    };
 
-    return () => unsubscribe();
+    fetchUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setUser(session?.user || null);
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -60,12 +71,31 @@ function App() {
                 }
               />
               <Route path="/" element={<Navigate to="/gallery" />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
             </Routes>
           </motion.div>
         </AnimatePresence>
       </div>
     </Router>
   );
+}
+
+function AuthCallback() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        navigate("/gallery");
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  return <div>Completing sign in...</div>;
 }
 
 export default App;

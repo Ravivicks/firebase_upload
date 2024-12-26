@@ -1,9 +1,4 @@
 import { useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-} from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "../components/ui/button";
@@ -18,7 +13,7 @@ import {
   CardFooter,
 } from "../components/ui/card";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { auth } from "../lib/firebase";
+import { supabase } from "../lib/supabaseClient";
 
 export default function SignUp() {
   const [email, setEmail] = useState("");
@@ -29,7 +24,11 @@ export default function SignUp() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) throw error;
       navigate("/gallery");
     } catch (error) {
       setError("Failed to create an account");
@@ -38,10 +37,15 @@ export default function SignUp() {
   };
 
   const handleGoogleSignIn = async () => {
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      navigate("/gallery");
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      // The user will be redirected to Google for authentication
     } catch (error) {
       setError("Failed to sign in with Google");
       console.log(error);
